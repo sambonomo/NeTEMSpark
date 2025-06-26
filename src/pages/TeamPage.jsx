@@ -20,9 +20,11 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
+  Chip,
 } from "@mui/material";
 import GroupAddIcon from "@mui/icons-material/GroupAdd";
-import { useState, useEffect } from "react";
+import PersonIcon from "@mui/icons-material/Person";
+import { useState, useEffect, useMemo } from "react";
 import { db } from "../firebase";
 import {
   collection,
@@ -62,17 +64,13 @@ export default function TeamPage() {
     // Members subcollection
     const qMembers = collection(db, "companies", companyId, "members");
     const unsubMembers = onSnapshot(qMembers, (snap) => {
-      setMembers(
-        snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      setMembers(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     // Invites subcollection
     const qInvites = collection(db, "companies", companyId, "invites");
     const unsubInvites = onSnapshot(qInvites, (snap) => {
-      setInvites(
-        snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      setInvites(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
 
@@ -81,6 +79,13 @@ export default function TeamPage() {
       unsubInvites();
     };
   }, [companyId]);
+
+  // RBAC: Compute role for this user
+  const myMember = useMemo(
+    () => members.find((m) => m.email === user?.email),
+    [members, user]
+  );
+  const isAdmin = myMember?.role === "admin" || (!myMember && members.length === 1); // First user is admin
 
   // Handle invite
   const handleInvite = async (e) => {
@@ -116,24 +121,44 @@ export default function TeamPage() {
   return (
     <Box maxWidth={720}>
       <Typography variant="h4" fontWeight={700} mb={3}>
-        Team Members <GroupAddIcon sx={{ fontSize: 32, ml: 1, mb: "-8px", color: "primary.main" }} />
+        Team Members{" "}
+        <GroupAddIcon sx={{ fontSize: 32, ml: 1, mb: "-8px", color: "primary.main" }} />
       </Typography>
       <Card variant="outlined" sx={{ mb: 4 }}>
         <CardContent>
-          <Typography variant="h6" fontWeight={600}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <PersonIcon color="primary" />
+            <Typography variant="subtitle1" fontWeight={700}>
+              {user?.email}
+            </Typography>
+            <Chip
+              label={isAdmin ? "Admin" : "Member"}
+              color={isAdmin ? "primary" : "default"}
+              size="small"
+              sx={{ fontWeight: 700 }}
+            />
+          </Stack>
+          <Typography variant="h6" fontWeight={600} mt={2}>
             {companyLoading ? "Loading..." : company?.name || ""}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Invite teammates to collaborate and manage your company’s telecom.
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<GroupAddIcon />}
-            onClick={() => setOpen(true)}
-            sx={{ mt: 2 }}
-          >
-            Invite User
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="contained"
+              startIcon={<GroupAddIcon />}
+              onClick={() => setOpen(true)}
+              sx={{ mt: 2 }}
+            >
+              Invite User
+            </Button>
+          )}
+          {!isAdmin && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Only company admins can invite new users.
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -157,7 +182,13 @@ export default function TeamPage() {
               {members.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>{m.email}</TableCell>
-                  <TableCell>{m.role === "admin" ? "Admin" : "Member"}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={m.role === "admin" ? "Admin" : "Member"}
+                      color={m.role === "admin" ? "primary" : "default"}
+                      size="small"
+                    />
+                  </TableCell>
                   <TableCell>
                     <Box
                       component="span"
@@ -179,7 +210,13 @@ export default function TeamPage() {
               {invites.map((i) => (
                 <TableRow key={i.id}>
                   <TableCell>{i.email}</TableCell>
-                  <TableCell>{i.role === "admin" ? "Admin" : "Member"}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={i.role === "admin" ? "Admin" : "Member"}
+                      color={i.role === "admin" ? "primary" : "default"}
+                      size="small"
+                    />
+                  </TableCell>
                   <TableCell>
                     <Box
                       component="span"

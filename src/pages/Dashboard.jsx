@@ -12,6 +12,9 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Button,
+  Stack,
+  Box,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
@@ -21,8 +24,13 @@ import {
   where,
   onSnapshot,
   orderBy,
+  getDocs,
 } from "firebase/firestore";
 import useCompany from "../context/useCompany";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import GroupAddIcon from "@mui/icons-material/GroupAdd";
+import DescriptionIcon from "@mui/icons-material/Description";
+import StorageIcon from "@mui/icons-material/Storage";
 
 export default function Dashboard() {
   const { companyId, loading: companyLoading } = useCompany();
@@ -31,7 +39,13 @@ export default function Dashboard() {
   const [contracts, setContracts] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [advisories, setAdvisories] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(() =>
+    localStorage.getItem("ntemspark-onboarding") !== "dismissed"
+  );
 
   useEffect(() => {
     if (!companyId) return;
@@ -63,6 +77,11 @@ export default function Dashboard() {
     const unsubAdvisory = onSnapshot(qAdvisory, (snap) => {
       setAdvisories(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    });
+
+    // Members (for onboarding)
+    getDocs(collection(db, "companies", companyId, "members")).then((snap) => {
+      setMembers(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
@@ -101,6 +120,11 @@ export default function Dashboard() {
     })
     .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
+  // Onboarding steps detection
+  const hasContracts = contracts.length > 0;
+  const hasInventory = inventory.length > 0;
+  const hasTeam = members.length > 1; // you + at least one teammate
+
   if (companyLoading || loading) {
     return <CircularProgress />;
   }
@@ -110,6 +134,67 @@ export default function Dashboard() {
       <Typography variant="h4" fontWeight={700} mb={3}>
         Dashboard
       </Typography>
+
+      {/* Onboarding Checklist */}
+      {showOnboarding && (
+        <Card variant="outlined" sx={{ mb: 4, bgcolor: "#e3f2fd" }}>
+          <CardContent>
+            <Stack direction={{ xs: "column", md: "row" }} alignItems="center" spacing={2} justifyContent="space-between">
+              <Box>
+                <Typography variant="h6" fontWeight={700} mb={1}>
+                  👋 Welcome to NeTEMSpark!
+                </Typography>
+                <Typography color="text.secondary" mb={1}>
+                  Here’s how to get started:
+                </Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <DescriptionIcon fontSize="small" />
+                    <Typography variant="body2">
+                      <span style={{ color: hasContracts ? "#388e3c" : "#888", fontWeight: 600 }}>
+                        {hasContracts ? <CheckCircleIcon color="success" fontSize="small" /> : "○"}
+                      </span>
+                      {" "}
+                      Upload your first contract
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <StorageIcon fontSize="small" />
+                    <Typography variant="body2">
+                      <span style={{ color: hasInventory ? "#388e3c" : "#888", fontWeight: 600 }}>
+                        {hasInventory ? <CheckCircleIcon color="success" fontSize="small" /> : "○"}
+                      </span>
+                      {" "}
+                      Add inventory (circuit, phone, or device)
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <GroupAddIcon fontSize="small" />
+                    <Typography variant="body2">
+                      <span style={{ color: hasTeam ? "#388e3c" : "#888", fontWeight: 600 }}>
+                        {hasTeam ? <CheckCircleIcon color="success" fontSize="small" /> : "○"}
+                      </span>
+                      {" "}
+                      Invite your team
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Box>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => {
+                  setShowOnboarding(false);
+                  localStorage.setItem("ntemspark-onboarding", "dismissed");
+                }}
+                sx={{ mt: { xs: 2, md: 0 }, minWidth: 160 }}
+              >
+                Dismiss
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stat Cards */}
       <Grid container spacing={3} mb={4}>

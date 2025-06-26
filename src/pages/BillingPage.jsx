@@ -15,10 +15,12 @@ import {
   CircularProgress,
   Alert,
   Divider,
+  Chip,
 } from "@mui/material";
 import PaymentIcon from "@mui/icons-material/Payment";
 import useCompany from "../context/useCompany";
-import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useMemo, useState, useEffect } from "react";
 
 // Placeholder invoices (replace with Stripe data integration)
 const exampleInvoices = [
@@ -33,6 +35,7 @@ const exampleInvoices = [
 
 export default function BillingPage() {
   const { company, loading: companyLoading } = useCompany();
+  const { user } = useAuth();
 
   // Invoices state (future: load from Stripe)
   const [invoices, setInvoices] = useState([]);
@@ -46,6 +49,17 @@ export default function BillingPage() {
   // Plan/renewal logic (stub; in production, fetch from company or Stripe data)
   const plan = company?.plan || "Team";
   const nextRenewal = company?.nextRenewal || "2025-07-25";
+
+  // RBAC: Figure out role (admin or member)
+  const myRole = useMemo(() => {
+    // If company has members array, try to find role for current email
+    if (company && Array.isArray(company.members) && user?.email) {
+      const member = company.members.find((m) => m.email === user.email);
+      return member?.role || "member";
+    }
+    // Fallback: assume admin if not found
+    return "admin";
+  }, [company, user]);
 
   return (
     <Box>
@@ -70,23 +84,40 @@ export default function BillingPage() {
                 <Typography variant="h6" fontWeight={600}>
                   Your Subscription
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Company:{" "}
-                  <span style={{ fontWeight: 600 }}>
-                    {company?.name || "Loading..."}
-                  </span>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Plan:{" "}
-                  <span style={{ fontWeight: 600, color: "#1976d2" }}>{plan}</span>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
+                  <Chip
+                    label={plan}
+                    color={plan === "Enterprise" ? "secondary" : "primary"}
+                    variant="outlined"
+                    sx={{ fontWeight: 700 }}
+                  />
+                  <Chip
+                    label={company?.name || ""}
+                    color="default"
+                    variant="outlined"
+                  />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" mt={1}>
                   Next renewal: {nextRenewal}
                 </Typography>
               </Box>
-              <Button variant="contained" color="primary" sx={{ minWidth: 180 }}>
-                Manage Billing
-              </Button>
+              {myRole === "admin" ? (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  sx={{ minWidth: 180 }}
+                  onClick={() => {
+                    // TODO: Connect to Stripe Customer Portal or manage billing page
+                    alert("Coming soon: Connect to Stripe/RevenueCat/etc.");
+                  }}
+                >
+                  Manage Billing
+                </Button>
+              ) : (
+                <Alert severity="info" sx={{ minWidth: 180 }}>
+                  Only company admins can manage billing.
+                </Alert>
+              )}
             </Stack>
           )}
         </CardContent>

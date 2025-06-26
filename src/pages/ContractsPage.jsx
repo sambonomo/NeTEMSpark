@@ -20,9 +20,10 @@ import {
   DialogContent,
   DialogActions,
   Stack,
+  LinearProgress,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { db, storage } from "../firebase";
 import {
   collection,
@@ -36,6 +37,26 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "../context/AuthContext";
 import useCompany from "../context/useCompany";
+import Tesseract from "tesseract.js";
+import { logEvent } from "../utils/logEvent";
+
+function extractContractFields(text) {
+  // Simple regex patterns, refine as needed
+  const vendorMatch = text.match(/Vendor:\s*([A-Za-z0-9 .,-]+)/i);
+  const serviceMatch = text.match(/Service:\s*([A-Za-z0-9 .,-]+)/i);
+  const startMatch = text.match(/Start\s*Date:\s*([0-9/-]+)/i);
+  const endMatch = text.match(/End\s*Date:\s*([0-9/-]+)/i);
+  const monthlyMatch = text.match(/\$([0-9,.]+)[^\S\r\n]*per\s*month/i);
+
+  return {
+    vendor: vendorMatch ? vendorMatch[1].trim() : "",
+    service: serviceMatch ? serviceMatch[1].trim() : "",
+    startDate: startMatch ? startMatch[1].trim() : "",
+    endDate: endMatch ? endMatch[1].trim() : "",
+    monthlyCost: monthlyMatch ? monthlyMatch[1].replace(/,/g, "") : "",
+    ocrRaw: text,
+  };
+}
 
 export default function ContractsPage() {
   const { user } = useAuth();
@@ -50,6 +71,11 @@ export default function ContractsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [file, setFile] = useState(null);
+
+  // OCR state
+  const [ocrStatus, setOcrStatus] = useState("");
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrExtracted, setOcrExtracted] = useState(null);
 
   // Contract form state
   const [vendor, setVendor] = useState("");
@@ -77,7 +103,52 @@ export default function ContractsPage() {
   // Handle file input
   const handleUploadClick = () => setOpen(true);
 
-  // Submit new contract
+  // OCR on file select
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0];
+    setFile(selectedFile || null);
+    setOcrExtracted(null);
+    setOcrStatus("");
+    setOcrProgress(0);
+
+    if (!selectedFile) return;
+
+    // Only process images for now (Tesseract works best for PNG/JPG/BMP, not PDF)
+    if (!selectedFile.type.startsWith("image/")) {
+      setOcrStatus("OCR only works for images (PNG/JPG) in this demo.");
+      return;
+    }
+
+    setOcrStatus("Running OCR...");
+    try {
+      const reader = new window.FileReader();
+      reader.onload = async (event) => {
+        const imageData = event.target.result;
+        const result = await Tesseract.recognize(imageData, "eng", {
+          logger: (m) => {
+            if (m.status === "recognizing text" && m.progress) {
+              setOcrProgress(Math.round(m.progress * 100));
+            }
+          },
+        });
+        const text = result.data.text;
+        setOcrStatus("Extracting fields...");
+        const extracted = extractContractFields(text);
+        setOcrExtracted(extracted);
+        setVendor(extracted.vendor);
+        setService(extracted.service);
+        setStartDate(extracted.startDate);
+        setEndDate(extracted.endDate);
+        setMonthlyCost(extracted.monthlyCost);
+        setOcrStatus("OCR complete. Please review and edit below.");
+      };
+      reader.readAsDataURL(selectedFile);
+    } catch (err) {
+      setOcrStatus("OCR failed. Please enter info manually.");
+    }
+  };
+
+  // Submit new contract (with audit logging)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -91,7 +162,7 @@ export default function ContractsPage() {
       const url = await getDownloadURL(fileRef);
 
       // Save contract record to Firestore
-      await addDoc(collection(db, "contracts"), {
+      const docRef = await addDoc(collection(db, "contracts"), {
         companyId,
         userId: user.uid,
         vendor,
@@ -103,7 +174,25 @@ export default function ContractsPage() {
         fileUrl: url,
         fileName: file.name,
         createdAt: serverTimestamp(),
+        ocrRaw: ocrExtracted ? ocrExtracted.ocrRaw : "",
+        ocrStatus: ocrExtracted ? "success" : "manual",
       });
+
+      // Log audit event (async, never blocks main flow)
+      logEvent(
+        "contract.add",
+        {
+          contractId: docRef.id,
+          vendor,
+          service,
+          startDate,
+          endDate,
+          monthlyCost,
+          fileName: file.name,
+          ocrStatus: ocrExtracted ? "success" : "manual",
+        },
+        { companyId }
+      );
 
       // Reset state and close
       setOpen(false);
@@ -113,6 +202,9 @@ export default function ContractsPage() {
       setStartDate("");
       setEndDate("");
       setMonthlyCost("");
+      setOcrStatus("");
+      setOcrExtracted(null);
+      setOcrProgress(0);
     } catch (err) {
       setError(err.message || "Failed to upload contract.");
     }
@@ -134,7 +226,8 @@ export default function ContractsPage() {
                 Upload New Contract
               </Typography>
               <Typography variant="body2" color="text.secondary" mb={1}>
-                PDF, DOCX, or image files. OCR and auto-extract coming soon!
+                PNG/JPG images supported for OCR (auto-extract).
+                PDF support coming soon!
               </Typography>
               <Button
                 variant="contained"
@@ -170,7 +263,7 @@ export default function ContractsPage() {
       </Card>
 
       {/* Upload Dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Upload New Contract</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
@@ -185,11 +278,21 @@ export default function ContractsPage() {
                 <input
                   type="file"
                   hidden
-                  accept=".pdf,.docx,.png,.jpg,.jpeg"
-                  onChange={(e) => setFile(e.target.files[0] || null)}
+                  accept=".png,.jpg,.jpeg"
+                  onChange={handleFileChange}
                   required
                 />
               </Button>
+              {ocrStatus && (
+                <Alert severity={ocrStatus.startsWith("OCR failed") ? "warning" : "info"}>
+                  {ocrStatus}
+                  {ocrProgress > 0 && ocrProgress < 100 && (
+                    <Box mt={1}>
+                      <LinearProgress variant="determinate" value={ocrProgress} />
+                    </Box>
+                  )}
+                </Alert>
+              )}
               <TextField
                 label="Vendor"
                 value={vendor}

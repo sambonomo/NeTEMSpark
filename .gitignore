@@ -7,18 +7,47 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Dependency directories
+node_modules/
+.pnpm/
+.yarn/
+dist/
+dist-ssr/
+build/
+coverage/
+
+# Local env files & Firebase secrets
+.env
+.env.*         # any .env.* files (e.g. .env.production, .env.local)
+firebase-debug.log
 
 # Editor directories and files
-.vscode/*
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS/Tooling files
+*.bak
+*.tmp
+*.swp
+Thumbs.db
+
+# Output of `npm pack`
+*.tgz
+
+# Optional: MacOS system files
+.AppleDouble
+.LSOverride
+
+# Optional: Vercel/Netlify/Deploy config
+.vercel/
+.netlify/
+
+# NPM log files
+npm-debug.log*

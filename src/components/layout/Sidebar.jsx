@@ -17,10 +17,12 @@ import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import SettingsIcon from "@mui/icons-material/Settings";
 import GroupIcon from "@mui/icons-material/Group";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
 import { useLocation, Link } from "react-router-dom";
 
 const drawerWidth = 220;
 
+// Order is UX-optimized: Dashboard, core features, admin, then settings
 const navItems = [
   { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
   { text: "Contracts", icon: <DescriptionIcon />, path: "/contracts" },
@@ -29,6 +31,7 @@ const navItems = [
   { text: "MAC Requests", icon: <SyncAltIcon />, path: "/mac-requests" },
   { text: "Billing", icon: <ReceiptIcon />, path: "/billing" },
   { text: "Team", icon: <GroupIcon />, path: "/team" },
+  { text: "Audit Trail", icon: <FactCheckIcon />, path: "/audit-trail" }, // Use FactCheckIcon for clear distinction
   { text: "Settings", icon: <SettingsIcon />, path: "/settings" },
 ];
 
@@ -57,11 +60,16 @@ export default function Sidebar() {
             <ListItem
               key={item.path}
               disablePadding
-              selected={location.pathname.startsWith(item.path)}
+              selected={
+                location.pathname === item.path ||
+                (item.path !== "/" && location.pathname.startsWith(item.path))
+              }
               sx={{
-                bgcolor: location.pathname.startsWith(item.path)
-                  ? "action.selected"
-                  : "inherit",
+                bgcolor:
+                  location.pathname === item.path ||
+                  (item.path !== "/" && location.pathname.startsWith(item.path))
+                    ? "action.selected"
+                    : "inherit",
               }}
             >
               <ListItemButton component={Link} to={item.path}>

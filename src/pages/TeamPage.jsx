@@ -36,6 +36,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import useCompany from "../context/useCompany";
+import { logEvent } from "../utils/logEvent"; // <-- ADD THIS
 
 const roles = [
   { value: "admin", label: "Admin" },
@@ -102,13 +103,22 @@ export default function TeamPage() {
       ) {
         throw new Error("User already invited or a member.");
       }
-      await addDoc(collection(db, "companies", companyId, "invites"), {
+      const docRef = await addDoc(collection(db, "companies", companyId, "invites"), {
         email: emailTrimmed,
         role: inviteRole,
         status: "Pending",
         invitedBy: user.email,
         invitedAt: serverTimestamp(),
       });
+
+      // Audit log for invite
+      logEvent("user.invite", {
+        inviteId: docRef.id,
+        invitedEmail: emailTrimmed,
+        role: inviteRole,
+        invitedBy: user.email,
+      }, { companyId });
+
       setOpen(false);
       setInviteEmail("");
       setInviteRole("member");

@@ -35,6 +35,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import useCompany from "../context/useCompany";
+import { logEvent } from "../utils/logEvent"; // ⬅️ Add this!
 
 const macTypes = [
   { value: "Move", label: "Move" },
@@ -86,7 +87,7 @@ export default function MacRequestsPage() {
     setSubmitting(true);
     try {
       if (!companyId) throw new Error("No company selected.");
-      await addDoc(collection(db, "macRequests"), {
+      const docRef = await addDoc(collection(db, "macRequests"), {
         companyId,
         userId: user.uid,
         type,
@@ -96,6 +97,17 @@ export default function MacRequestsPage() {
         status: "Submitted",
         submittedAt: serverTimestamp(),
       });
+
+      // Audit log for MAC request submission
+      logEvent("macRequest.add", {
+        macRequestId: docRef.id,
+        type,
+        service,
+        details,
+        requestedDate: date,
+        status: "Submitted",
+      }, { companyId });
+
       setOpen(false);
       setType("");
       setService("");

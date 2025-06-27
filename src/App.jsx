@@ -10,6 +10,7 @@ import AdvisoryPage from "./pages/AdvisoryPage";
 import MacRequestsPage from "./pages/MacRequestsPage";
 import BillingPage from "./pages/BillingPage";
 import TeamPage from "./pages/TeamPage";
+import AuditTrailPage from "./pages/AuditTrailPage";
 import SettingsPage from "./pages/SettingsPage";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -47,6 +48,7 @@ function AppShell() {
               <Route path="/mac-requests" element={<MacRequestsPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/audit-trail" element={<AuditTrailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
